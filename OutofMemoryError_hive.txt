@@ -1,0 +1,101 @@
+Out of memory error in hive
+============================
+The problem is probably because there is too much data moving through the shuffle phase.
+Solution:You can reduce the amount of data moving between tasks as part of
+         the SHUFFLE steps by using more aggressive queries and by looking carefully at your input splits and reduce summary steps.
+         inspecting each of the TEZ tasks and look at the SHUFFLE BYTES counters to see how much data is moving between the steps
+         
+Apply these properties
+hive.tez.container.size
+hive.tez.java.opts
+hive.auto.convert.join.noconditionaltask=false
+
+When hive.auto.convert.join.noconditionaltask = true we check noconditionaltask.size and if the
+sum  of tables sizes in the map join is less than noconditionaltask.size the plan would
+generate a Map join, the issue with this is that the calculation doesnt take into account the
+overhead introduced by different HashTable implementation as results if the sum of input sizes
+is smaller than the noconditionaltask size by a small margin queries will hit OOM.
+
+
+As the blog post suggests, the following two memory settings define the container memory for
+the heap: hive.tez.container.size and hive.tez.java.opts. From our experience, the out of
+memory exception does not mean the container size is too small. It means the Java heap size
+(hive.tez.java.opts) is too small. So whenever you see out of memory, you can try to increase
+hive.tez.java.opts. If needed you might have to increase hive.tez.container.size. The java.opts
+setting should be around 80% of container.size.
+
+The setting hive.tez.java.opts must always be smaller than hive.tez.container.size
+
+Because a D12 machine has 28GB memory, we decided to use a container size of 10GB (10240MB) and assign 80% to java.opts:
+
+SET hive.tez.container.size=10240
+SET hive.tez.java.opts=-Xmx8192m
+
+
+####Your local Hive CLI JVM heap size is insufficient for even building and submitting the job
+~> export HADOOP_CLIENT_OPTS="-Xmx2g"
+~> hive -e "select count(station_id) from aws_new;"
+
+###Optimizing Joins in hive/Sorting
+
+. Enable map joins
+set hive.auto.convert.join = true;
+It is a pretty good approach to enable map joins in hive when you are trying to do a join with
+multiple tables and if one or more of them has a smaller data volume. With this enabled the
+smaller tables would be distributed on the distributed cache as a hash table by a local map
+reduce task before the actual map reduce job. This could save considerable time as it turns to
+be map side join compared to running a common map reduce side join (normal hive join). You need
+to set the following at hive CLI before running the join Query.
+
+#####
+if you get an OutOfMemoryError with the message “Java heap space” (not to be confused with message “PermGen space“), 
+it simply means the JVM ran out of memory.
+
+When it occurs, you basically have 2 options:
+
+Solution 1. Allow the JVM to use more memory
+
+With the -Xmx JVM argument, you can set the heap size. For instance, you can allow the JVM to use 2 GB (2048 MB) of memory with the following command:
+
+java -Xmx2048m
+
+Solution 2.Improve or fix the application to reduce memory usage.
+
+In many cases, like in the case of a memory leak, that second option is the only good solution. A memory leak happens when the application
+creates more and more objects and never releases them. The garbage collector cannot collect those objects and the application will
+eventually run out of memory.There are various third party tools to detect and fix memory leaks but it is always better to prevent one from
+happening.
+
+
+##################3
+
+Hive query fails with out of memory errors when doing "shuffleInMemory":
+
+Error: java.lang.OutOfMemoryError: 
+Java heap space at org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier.shuffleInMemory(ReduceTask.java:1774) 
+at org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier.getMapOutputFromFile(ReduceTask.java:1487) 
+at org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier.copyOutput(ReduceTask.java:1361) 
+at org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier.run(ReduceTask.java:1278)
+
+Root Cause:
+When Hive query is doing shuffle phase in MapReduce, it tries to copy map outputs to reducer.
+The memory used in this case is:
+
+mapred.job.shuffle.input.buffer.percent(default is 0.70) * Max heap size(-Xmx in mapred.reduce.child.java.opts).
+
+Currently the code will not check if there is enough heap memory for shuffle phase, so it may run out of heap memory.
+One case is when Hive query is to select many columns.
+Solution: 
+
+1. Increase mapred.reduce.child.java.opts after fully understanding the memory usage on the whole cluster.
+Please refer to this article for details about Five Steps to Avoiding Java Heap Space Errors.
+Do not blindly increase this memory setting since it may cause other service or jobs running out of memory.
+In hive shell:
+
+set mapred.reduce.child.java.opts=-Xmx8192m;
+
+
+2. Decrease mapred.job.shuffle.input.buffer.percent from default 0.70 to 0.20 for example.
+In hive shell:
+
+set mapred.job.shuffle.input.buffer.percent=0.20;
