@@ -1,0 +1,123 @@
+Row_number:
+Attributes, it assign unique value for each row.
+
+
+select e.*, row_number() over (order by salary desc) row_number from Employee e
+
+
+rank_employee.csv
+
+name,salary  
+Jackob,7000  
+Peter,5000 
+John,4000  
+Shane,3000 
+Rick,3000 
+Sid,1000
+
+create table rank_employee(name string, salary int) 
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+stored as TEXTFILE
+tblproperties("skip.header.line.count"="1")
+
+
+
+load data inpath '/user/root/rank_employee.csv' into table rank_employee
+
+set hive.cbo.enable=true;
+set hive.compute.query.using.stats=true
+set hive.stats.fetch.column.stats=true;
+set hive.stats.fetch.partition.stats=true;
+
+#
+#Row_number:
+#Attributes, it assign unique value for each row.
+
+select e.*, row_number() over(order by e.salary desc)rank_row from rank_employee e;
+
+
++---------+-----------+-----------+
+| e.name  | e.salary  | rank_row  |
++---------+-----------+-----------+
+| Jackob  | 7000      | 1         |
+| Peter   | 5000      | 2         |
+| John    | 4000      | 3         |
+| Shane   | 3000      | 4         |
+| Rick    | 3000      | 5         |
+| Sid     | 1000      | 6         |
++---------+-----------+-----------+
+6 rows selected (2.308 seconds)
+
+
+Partition by+---------------------+-----------------------+
+| rank_employee.name  | rank_employee.salary  |
++---------------------+-----------------------+
+| Jackob              | 7000                  |
+| Peter               | 5000                  |
+| John                | 4000                  |
+| Shane               | 3000                  |
+| Rick                | 3000                  |
+| Sid                 | 1000                  |
+| Jackob              | 7000                  |
+| Peter               | 5000                  |
+| John                | 4000                  |
+| Shane               | 3000                  |
+| Rick                | 3000                  |
+| Sid                 | 1000                  |
++---------------------+-----------------------+
+
+select e.*, row_number() over(partition by salary order by e.salary desc)rank_row from rank_employee e;
+
+result:
+
++---------+-----------+-----------+
+| e.name  | e.salary  | rank_row  |
++---------+-----------+-----------+
+| Peter   | 5000      | 1         |
+| Peter   | 5000      | 2         |
+| Shane   | 3000      | 1         |
+| Rick    | 3000      | 2         |
+| Shane   | 3000      | 3         |
+| Rick    | 3000      | 4         |
+| Sid     | 1000      | 1         |
+| Sid     | 1000      | 2         |
+| Jackob  | 7000      | 1         |
+| Jackob  | 7000      | 2         |
+| John    | 4000      | 1         |
+| John    | 4000      | 2         |
++---------+-----------+-----------+
+12 rows selected (17.54 seconds)
+
+
+#
+#rank(): Attributes, same rank number to same value, but leaving the whole
+
+select e.*, rank() over(order by e.salary desc)rank_row from rank_employee e;
+
++---------+-----------+-----------+
+| e.name  | e.salary  | rank_row  |
++---------+-----------+-----------+
+| Jackob  | 7000      | 1         |
+| Peter   | 5000      | 2         |
+| John    | 4000      | 3         |
+| Shane   | 3000      | 4         |
+| Rick    | 3000      | 4         |
+| Sid     | 1000      | 6         |
++---------+-----------+-----------+
+
+#
+#dense_rank(): Attributes, same rank number to same value, but not leaving the whole
+select e.*, dense_rank() over(order by e.salary desc)rank_row from rank_employee e;
+
++---------+-----------+-----------+
+| e.name  | e.salary  | rank_row  |
++---------+-----------+-----------+
+| Jackob  | 7000      | 1         |
+| Peter   | 5000      | 2         |
+| John    | 4000      | 3         |
+| Shane   | 3000      | 4         |
+| Rick    | 3000      | 4         |
+| Sid     | 1000      | 5         |
++---------+-----------+-----------+
+6 rows selected (19.998 seconds)
