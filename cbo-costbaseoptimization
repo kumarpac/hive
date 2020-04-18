@@ -1,0 +1,41 @@
+CBO- Cost based optimization plan
+It genarates more efficient execution plan
+
+create table emp(id int,name string,country string,sal int)
+row format delimited
+fields terminated by ','
+stored as textfile;
+
+load data inpath '/root/input/cbo_employee.csv' into table emp;
+
+create table empdetails(id int,name string,country string,sal int)
+row format delimited
+fields terminated by ','
+stored as orcfile;
+
+insert into table empdetails select * from emp;
+
+set hive.cbo.enable=true;
+set hive.compute.query.using.stats=true
+set hive.stats.fetch.column.stats=true;
+set hive.stats.fetch.partition.stats=true;
+
+select count(*) from empdetails;
+
+
+
+Dataset[cbo_employee.csv]
+==============
+1,pawan,india,1000
+2,Dom,india,1000
+3,Jack,UK,1000
+4,Tom,india,1000
+5,Sudhir,USA,1000
+6,Rianna,india,1000
+7,pawan,india,1000
+8,Aryan,india,1000
+9,san,india,1000
+
+
+
+
