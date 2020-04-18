@@ -1,0 +1,116 @@
+For join optimization in Hive
+===============================
+https://acadgild.com/blog/join-in-hive-optimization
+-Repartition
+-Replication
+-Semi Joins
+
+emp.csv
+
+1,pawan,india,1000
+2,Dom,india,1000
+3,Jack,UK,1000
+4,Tom,india,1000
+1,Sudhir,USA,1000
+1,Rianna,india,1000
+4,pawan,india,1000
+3,Aryan,india,1000
+2,san,india,1000
+
+
+dept.csv
+
+1,Big Data
+2,Analytics
+3,Data engineering
+4,supply Chain
+5,AI/ML
+
+
+[root@sandbox-hdp input]# hdfs dfs -put /root/input/emp.csv /user/root/
+[root@sandbox-hdp input]# hdfs dfs -put /root/input/dept.csv /user/root/
+
+Join table ordering (Largest table last)
+
+create table emp1(
+id INT,
+name STRING,
+country string,
+salary INT)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+stored as textfile;
+
+Loading the data to table ‘emp’:
+LOAD DATA INPATH '/user/root/emp.csv' INTO TABLE emp1;
+Check whether the data is loaded into the table or not.
+SELECT * FROM emp1;
+
+
+
+
+create table dept1(
+id INT,
+dept_name STRING)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+stored as textfile;
+
+
+Loading the data to table ‘dept’:
+LOAD DATA INPATH '/user/root/dept.csv' INTO TABLE dept1;
+Check whether the data is loaded into the table or not.
+SELECT * FROM dept;
+
+
+
+set hive.auto.convert.join=true;
+set hive.auto.convert.join.noconditionaltask=true;
+
+
+set hive.auto.convert.join=false;
+set hive.auto.convert.join.noconditionaltask=false;
+
+select e.id,e.name,e.salary from dept1 d join emp1 e on e.id = d.id
+select /*+ STREAMING(emp1) */ e.id,name,salary,dept_name from dept1 d join emp1 e on (e.id = d.id)
+
+
+SMB Map Join Optimization
+
+create table buck_emp1(
+id INT,
+name STRING,
+country string,
+salary INT)
+clustered by (id)
+sorted by (id) 
+into 4 buckets;
+
+insert overwrite table buck_emp1
+select * from emp1;
+
+
+create table buck_dept1(
+id INT,
+dept_name STRING)
+clustered by (id)
+sorted by (id)
+into 4 buckets;
+
+insert overwrite table buck_dept1 
+select * from dept1;
+
+
+set hive.enforce.bucketing=true;
+set hive.enforce.sorting=true;
+
+
+hive>set hive.enforce.sortmergebucketmapjoin=false;
+hive>set hive.auto.convert.sortmerge.join=true;
+hive>set hive.optimize.bucketmapjoin = true;
+hive>set hive.optimize.bucketmapjoin.sortedmerge = true;
+hive>set hive.auto.convert.join=false;  // if we do not do this, automatically Map-Side Join will happen
+SELECT u.name,u.salary FROM buck_dept d  INNER JOIN buck_emp u ON d.id = u.id;
+
+
+select e.id,name,salary,dept_name from buck_dept1 d inner join buck_emp1 e on e.id = d.id
