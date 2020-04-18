@@ -1,0 +1,7 @@
+
+set hivevar:country='india'
+select * from empdetails where ${country}='india';
+
+set country='india'
+select * from foo where day >= '${hiveconf:CURRENT_DATE}'
+hive -hiveconf CURRENT_DATE='2012-09-16' -f test.hql
