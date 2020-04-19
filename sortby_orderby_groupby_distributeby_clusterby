@@ -1,0 +1,41 @@
+http://myitlearnings.com/hive/
+
+select * from patient order by int_amt desc;
+Order by guarantees the total ordering of the output.
+
+Number of reduce at complie time determine to 1. It does global ordering of your datasets.
+All the datasets records must be sent to one recducer.
+It will lead to memory issue.
+
+Solution is to use multiple reducer,
+set mapredece.job.reduce=3
+
+Note: order by does global sorting, so even after setting number of recducer to 3, all records will go to 1 reducer only..
+Hence to overcome this problem, we can introduce sort by clause..
+
+sort by
+
+INSERT OVERWRITE LOCAL DIRECTORY '/user/root/output'
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+SELECT * FROM patient SORT BY dept_id;
+
+Here records are distributed in each reducers and then sorted out.This is not the best ordering as true ordering means it should go all the same set of records to  one file.
+
+Hive uses SORT BY to sort the rows based on the given columns per reducer. If there are more than one reducer, then the output per reducer will be sorted, but the order of total output is not guaranteed to be sorted 
+
+Distribute BY
+=========================
+INSERT OVERWRITE LOCAL DIRECTORY '/user/root/output'
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+SELECT * FROM patient destribute by dept_id SORT BY dept_id
+
+Distribute By is used to distribute the rows to different reducers based on the value(s) of column(s). All rows with the same Distribute By columns will go to the same reducer. This is like partitioning in Map-Reduce, where all the records having same value of partition goes to the same reducer. Distribute By does not guarantee clustering the rows, based on the distributed By columns, in the reducers.
+
+Distribute by with Sort by
+If we club Distribute by with Sort by, then we can control the clustering of rows inside each reducer based on the value of some columns
+
+
+CLUSTER BY
+Cluster by is same as ‘Distribute by and Sort by’. But Cluster by does the distribution and sorting on same columns. If we want to distribute by some columns and then sort by some other columns, then we should use ‘ distribute by with sort by’ instead of ‘cluster by
